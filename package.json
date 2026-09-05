@@ -1,0 +1,16 @@
+{
+  "name": "compiler-ipc-static-analysis-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test dist/tests/*.test.js",
+    "check": "npm run build && npm test",
+    "lab": "node dist/packages/cli/src/main.js"
+  },
+  "dependencies": {"typescript": "~5.9.3", "zod": "^3.25.76", "diff": "^8.0.2"},
+  "devDependencies": {"@types/node": "^22.19.0", "@types/diff": "^7.0.2"}
+}
