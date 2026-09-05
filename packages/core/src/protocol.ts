@@ -45,3 +45,27 @@ export type Finding = {
   file: string; start: number; length: number; line: number; column: number;
 };
 export type Analysis = {compilerFacts: Finding[]; ruleFindings: Finding[]};
+
+const hash = z.string().regex(/^[a-f0-9]{64}$/);
+const files = z.array(z.string().min(1)).max(100);
+const FindingSchema = z.object({source: z.enum(['compiler', 'rule']), code: label,
+  message: z.string(), file: z.string(), start: z.number().int().nonnegative(), length: z.number().int().nonnegative(),
+  line: z.number().int().nonnegative(), column: z.number().int().nonnegative()}).strict();
+const FileListSchema = z.object({files, fingerprint: hash}).strict();
+const OpenSchema = FileListSchema.extend({projectId: label});
+const AnalysisSchema = z.object({compilerFacts: z.array(FindingSchema), ruleFindings: z.array(FindingSchema), fingerprint: hash}).strict();
+const ProposalSchema = z.object({generator: z.literal('curated-fixture-v1'), prompt: z.string(), rule: RuleSchema, explanation: z.string()}).strict();
+const PreviewSchema = z.object({approvalId: hash, fingerprint: hash, rule: RuleSchema, status: z.literal('awaiting-approval'),
+  changes: z.array(z.object({file: z.string(), before: z.string(), after: z.string(), diff: z.string()}).strict()).min(1).max(100)}).strict();
+const AppliedSchema = z.object({status: z.literal('applied'), approvalId: hash, files,
+  beforeFingerprint: hash, afterFingerprint: hash}).strict();
+
+export function validateResult(request: Request, result: unknown): unknown {
+  switch (request.method) {
+    case 'openProject': return OpenSchema.parse(result);
+    case 'listFiles': return FileListSchema.parse(result);
+    case 'getDiagnostics': return AnalysisSchema.parse(result);
+    case 'proposeRule': return ProposalSchema.parse(result);
+    case 'applyRule': return (request.params.mode === 'preview' ? PreviewSchema : AppliedSchema).parse(result);
+  }
+}

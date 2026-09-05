@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { isUtf8 } from 'node:buffer';
 import { LabError } from './protocol.js';
 
 export type Project = {root: string; allowedRoot: string; relative: string; files: Map<string, string>; fingerprint: string};
@@ -29,7 +30,7 @@ export function loadProject(allowedRoot: string, relative: string): Project {
   const root = checkedPath(base, relative);
   if (!fs.statSync(root).isDirectory()) throw new LabError('INVALID_PROJECT', 'Project must be a directory');
   const marker = checkedPath(root, 'compiler-lab.json');
-  if (fs.statSync(marker).size > 4096 || JSON.parse(fs.readFileSync(marker, 'utf8')).synthetic !== true) {
+  if (!fs.statSync(marker).isFile() || fs.statSync(marker).size > 4096 || JSON.parse(fs.readFileSync(marker, 'utf8')).synthetic !== true) {
     throw new LabError('INVALID_PROJECT', 'Project requires compiler-lab.json with synthetic: true');
   }
   const files = new Map<string, string>();
@@ -49,7 +50,9 @@ export function loadProject(allowedRoot: string, relative: string): Project {
         if (size > LIMITS.fileBytes || total > LIMITS.totalBytes || files.size >= LIMITS.files) {
           throw new LabError('PROJECT_LIMIT', 'Synthetic project exceeds size limits');
         }
-        files.set(path.relative(root, full).split(path.sep).join('/'), fs.readFileSync(full, 'utf8'));
+        const bytes = fs.readFileSync(full);
+        if (bytes.length !== size || !isUtf8(bytes)) throw new LabError('INVALID_SOURCE', 'Source changed while reading or is not valid UTF-8');
+        files.set(path.relative(root, full).split(path.sep).join('/'), bytes.toString('utf8'));
       }
     }
   }

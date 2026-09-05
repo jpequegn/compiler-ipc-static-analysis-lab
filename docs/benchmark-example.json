@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-05T11:57:00.613Z",
+  "environment": {
+    "node": "v22.22.3",
+    "typescript": "5.9.3",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M4",
+    "logicalCpus": 10
+  },
+  "workload": {
+    "files": 2,
+    "fingerprint": "5979015ef6d0263997d61425ad791e4dcede7b79f2124530835d7a847d5acab9",
+    "rule": {
+      "kind": "forbidden-import",
+      "module": "legacy-api"
+    },
+    "warmupPerMode": 2,
+    "iterations": 7
+  },
+  "equivalenceVerified": true,
+  "startupAndOpenMs": 195.452,
+  "inProcess": {
+    "samplesMs": [
+      83.67266700000005,
+      76.40983400000005,
+      77.97504200000003,
+      89.27133299999991,
+      79.43408299999987,
+      77.638375,
+      75.62833300000011
+    ],
+    "count": 7,
+    "minMs": 75.62833300000011,
+    "medianMs": 77.97504200000003,
+    "p95Ms": 89.27133299999991,
+    "meanMs": 80.00423814285715
+  },
+  "ipc": {
+    "samplesMs": [
+      84.02262499999983,
+      79.65499999999997,
+      87.51791600000001,
+      79.58774999999991,
+      75.46320800000012,
+      76.63766600000008,
+      79.57279199999994
+    ],
+    "count": 7,
+    "minMs": 75.46320800000012,
+    "medianMs": 79.58774999999991,
+    "p95Ms": 87.51791600000001,
+    "meanMs": 80.35099385714284
+  },
+  "observedMedianDeltaMs": 1.6127079999998841,
+  "caveat": "Both modes reload files and construct a compiler program. The observed delta includes serialization, scheduling, separate heaps and noise; it is not a pure transport overhead estimate. Startup is reported separately."
+}
