@@ -37,8 +37,7 @@ function protectedByCatch(node: ts.Node): boolean {
   return false;
 }
 
-export function analyze(project: Project, inputRules: Rule[] = []): Analysis {
-  const rules = inputRules.map(rule => RuleSchema.parse(rule));
+export function createProjectProgram(project: Project): ts.Program {
   const options: ts.CompilerOptions = {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler, strict: true, noEmit: true, types: [], skipLibCheck: true};
   const original = ts.createCompilerHost(options);
@@ -58,7 +57,12 @@ export function analyze(project: Project, inputRules: Rule[] = []): Analysis {
     },
     writeFile: () => { throw new Error('Compiler writes are disabled'); },
   };
-  const program = ts.createProgram([...sources.keys()], options, host);
+  return ts.createProgram([...sources.keys()], options, host);
+}
+
+export function analyze(project: Project, inputRules: Rule[] = []): Analysis {
+  const rules = inputRules.map(rule => RuleSchema.parse(rule));
+  const program = createProjectProgram(project);
   const compilerFacts: Finding[] = ts.getPreEmitDiagnostics(program).map(d => {
     const start = d.start ?? 0;
     const pos = d.file?.getLineAndCharacterOfPosition(start);
@@ -67,7 +71,8 @@ export function analyze(project: Project, inputRules: Rule[] = []): Analysis {
       start, length: d.length ?? 0, line: pos ? pos.line + 1 : 0, column: pos ? pos.character + 1 : 0};
   });
   const ruleFindings: Finding[] = [];
-  for (const name of sources.keys()) {
+  for (const relative of project.files.keys()) {
+    const name = path.join(project.root, relative);
     const file = program.getSourceFile(name)!;
     function report(node: ts.Node, rule: Rule, message: string) {
       const start = node.getStart(file);

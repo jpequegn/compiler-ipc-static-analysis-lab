@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import ts from 'typescript';
 import { createPatch } from 'diff';
-import { moduleLiteral } from './analyze.js';
-import { checkedPath, loadProject, type Project } from './project.js';
+import { moduleLiteral, createProjectProgram } from './analyze.js';
+import { checkedPath, loadProject, LIMITS, type Project } from './project.js';
 import { LabError, RuleSchema, type Rule } from './protocol.js';
 
 type Change = {file: string; before: string; after: string; diff: string};
@@ -16,6 +17,8 @@ export function preview(project: Project, inputRule: Rule): Preview {
     throw new LabError('NO_FIX', 'Only an explicit import-module replacement can edit files');
   }
   const changes: Change[] = [];
+  if (createProjectProgram(project).getSyntacticDiagnostics().length) throw new LabError('INVALID_SYNTAX', 'Fix syntax errors before preparing edits');
+  let projectedBytes = 0;
   const {module: moduleName, replacement} = rule;
   for (const [file, before] of project.files) {
     const source = ts.createSourceFile(file, before, ts.ScriptTarget.Latest, true);
@@ -30,6 +33,10 @@ export function preview(project: Project, inputRule: Rule): Preview {
     for (const range of ranges.sort((a, b) => b.start - a.start)) {
       after = after.slice(0, range.start) + replacement + after.slice(range.end);
     }
+    projectedBytes += Buffer.byteLength(after);
+    if (Buffer.byteLength(after) > LIMITS.fileBytes || projectedBytes > LIMITS.totalBytes) {
+      throw new LabError('PROJECT_LIMIT', 'Replacement would exceed project size limits');
+    }
     if (after !== before) changes.push({file, before, after, diff: createPatch(file, before, after, 'before', 'after')});
   }
   if (!changes.length) throw new LabError('NO_CHANGES', 'No matching import literals to replace');
@@ -41,9 +48,14 @@ export function preview(project: Project, inputRule: Rule): Preview {
 export function applyPreview(project: Project, plan: Preview, approvalId: string) {
   if (approvalId !== plan.approvalId) throw new LabError('APPROVAL_REQUIRED', 'Approval does not match the reviewed preview');
   const current = loadProject(project.allowedRoot, project.relative);
-  if (current.fingerprint !== plan.fingerprint || preview(current, plan.rule).approvalId !== approvalId) {
+  if (current.fingerprint !== plan.fingerprint) {
     throw new LabError('STALE_PREVIEW', 'Project or rule changed; review a new preview');
   }
+  const verified = preview(current, plan.rule);
+  if (verified.approvalId !== approvalId || !isDeepStrictEqual(verified, plan)) {
+    throw new LabError('STALE_PREVIEW', 'Project or rule changed; review a new preview');
+  }
+  plan = verified;
   const staged: {target: string; next: string; backup: string; change: Change}[] = [];
   const applied: typeof staged = [];
   let recoveryFailed = false;

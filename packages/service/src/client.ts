@@ -1,11 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ResponseSchema, RequestSchema, LabError, type Request } from '../../core/src/protocol.js';
+import { ResponseSchema, RequestSchema, validateResult, LabError, type Request } from '../../core/src/protocol.js';
 import { Lines, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES } from './framing.js';
 
 export class Client {
   private child: ChildProcessWithoutNullStreams;
-  private pending = new Map<string, {resolve: (result: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout}>();
+  private pending = new Map<string, {request: Request; resolve: (result: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout}>();
   private sequence = 0;
   private stopped = false;
   private ended: Promise<void>;
@@ -18,8 +18,9 @@ export class Client {
         const response = ResponseSchema.parse(JSON.parse(value));
         const entry = response.id ? this.pending.get(response.id) : undefined;
         if (!entry) throw new Error('Uncorrelated service response');
+        const result = response.ok ? validateResult(entry.request, response.result) : undefined;
         this.pending.delete(response.id!); clearTimeout(entry.timer);
-        if (response.ok) entry.resolve(response.result);
+        if (response.ok) entry.resolve(result);
         else entry.reject(new LabError(response.error.code, response.error.message));
       } catch { this.fail(new LabError('PROTOCOL_ERROR', 'Invalid service response')); }
     }, message => this.fail(new LabError('PROTOCOL_ERROR', message)));
@@ -40,7 +41,7 @@ export class Client {
     if (Buffer.byteLength(data) > MAX_REQUEST_BYTES) return Promise.reject(new LabError('FRAME_ERROR', 'Request exceeds byte limit'));
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => this.fail(new LabError('TIMEOUT', 'Service request timed out; start a new client')), this.timeoutMs);
-      this.pending.set(id, {resolve, reject, timer});
+      this.pending.set(id, {request, resolve, reject, timer});
       this.child.stdin.write(data);
     });
   }
