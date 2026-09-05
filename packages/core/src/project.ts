@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { LabError } from './protocol.js';
 
-export type Project = {root: string; files: Map<string, string>; fingerprint: string};
+export type Project = {root: string; allowedRoot: string; relative: string; files: Map<string, string>; fingerprint: string};
 export const LIMITS = {files: 100, fileBytes: 256 * 1024, totalBytes: 2 * 1024 * 1024, entries: 1000};
 
 export function inside(root: string, target: string): boolean {
@@ -56,5 +56,5 @@ export function loadProject(allowedRoot: string, relative: string): Project {
   walk(root);
   if (!files.size) throw new LabError('INVALID_PROJECT', 'Project contains no TypeScript files');
   const fingerprint = createHash('sha256').update(JSON.stringify([...files])).digest('hex');
-  return {root, files, fingerprint};
+  return {root, allowedRoot: base, relative, files, fingerprint};
 }
